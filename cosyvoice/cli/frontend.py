@@ -71,6 +71,16 @@ class CosyVoiceFrontEnd:
             self.zh_tn_model = ZhNormalizer(remove_erhua=False, full_to_half=False)
             self.en_tn_model = EnNormalizer()
 
+    def load_voices(self, voices_dir="./voices"):
+        self.spk2info = {}
+        for file_name in os.listdir(voices_dir):
+            if file_name.endswith(".pt"):
+                file_path = os.path.join(voices_dir, file_name)
+                spk_info = torch.load(file_path, map_location=self.device)
+                spk_name = file_name.split(".")[0]
+                self.spk2info.update({spk_name: spk_info})
+        print("Loaded voices:", self.spk2info.keys())
+
     def _extract_text_token(self, text):
         text_token = self.tokenizer.encode(text, allowed_special=self.allowed_special)
         text_token = torch.tensor([text_token], dtype=torch.int32).to(self.device)
@@ -138,6 +148,19 @@ class CosyVoiceFrontEnd:
         tts_text_token, tts_text_token_len = self._extract_text_token(tts_text)
         embedding = self.spk2info[spk_id]['embedding']
         model_input = {'text': tts_text_token, 'text_len': tts_text_token_len, 'llm_embedding': embedding, 'flow_embedding': embedding}
+        return model_input
+
+    def frontend_merge(self, tts_text, spk1_id, spk2_id, spk1_weight=0.5, spk2_weight=0.5):
+        tts_text_token, tts_text_token_len = self._extract_text_token(tts_text)
+        embedding1 = self.spk2info[spk1_id]["embedding"]
+        embedding2 = self.spk2info[spk2_id]["embedding"]
+        embedding = spk1_weight * embedding1 + spk2_weight * embedding2
+        model_input = {
+            "text": tts_text_token,
+            "text_len": tts_text_token_len,
+            "llm_embedding": embedding,
+            "flow_embedding": embedding,
+        }
         return model_input
 
     def frontend_zero_shot(self, tts_text, prompt_text, prompt_speech_16k):

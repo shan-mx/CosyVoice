@@ -48,6 +48,9 @@ class CosyVoice:
         if load_onnx:
             self.model.load_onnx('{}/flow.decoder.estimator.fp32.onnx'.format(model_dir))
         del configs
+        
+    def reload_voices(self):
+        self.frontend.load_voices()
 
     def list_avaliable_spks(self):
         spks = list(self.frontend.spk2info.keys())
@@ -61,6 +64,21 @@ class CosyVoice:
             for model_output in self.model.inference(**model_input, stream=stream):
                 speech_len = model_output['tts_speech'].shape[1] / 22050
                 logging.info('yield speech len {}, rtf {}'.format(speech_len, (time.time() - start_time) / speech_len))
+                yield model_output
+                start_time = time.time()
+
+    def inference_merge(self, tts_text, spk1_id, spk2_id, spk1_weight=0.5, spk2_weight=0.5, stream=False):
+        for i in self.frontend.text_normalize(tts_text, split=True):
+            model_input = self.frontend.frontend_merge(i, spk1_id, spk2_id, spk1_weight, spk2_weight)
+            start_time = time.time()
+            logging.info("synthesis text {}".format(i))
+            for model_output in self.model.inference(**model_input, stream=stream):
+                speech_len = model_output["tts_speech"].shape[1] / 22050
+                logging.info(
+                    "yield speech len {}, rtf {}".format(
+                        speech_len, (time.time() - start_time) / speech_len
+                    )
+                )
                 yield model_output
                 start_time = time.time()
 
