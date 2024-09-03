@@ -16,6 +16,7 @@ import time
 from tqdm import tqdm
 from hyperpyyaml import load_hyperpyyaml
 from modelscope import snapshot_download
+import torch
 from cosyvoice.cli.frontend import CosyVoiceFrontEnd
 from cosyvoice.cli.model import CosyVoiceModel
 from cosyvoice.utils.file_utils import logging
@@ -48,6 +49,11 @@ class CosyVoice:
         if load_onnx:
             self.model.load_onnx('{}/flow.decoder.estimator.fp32.onnx'.format(model_dir))
         del configs
+        self.last_voice_embedding = None
+        
+    def export_voice_embedding(self, voice_name):
+        if self.last_voice_embedding is not None:
+            torch.save({"embedding": self.last_voice_embedding}, f"./voices/{voice_name}.pt")
         
     def reload_voices(self):
         self.frontend.load_voices()
@@ -66,6 +72,7 @@ class CosyVoice:
                 logging.info('yield speech len {}, rtf {}'.format(speech_len, (time.time() - start_time) / speech_len))
                 yield model_output
                 start_time = time.time()
+            self.last_voice_embedding = model_input["flow_embedding"]
 
     def inference_merge(self, tts_text, spk1_id, spk2_id, spk1_weight=0.5, spk2_weight=0.5, stream=False):
         for i in self.frontend.text_normalize(tts_text, split=True):
@@ -81,6 +88,7 @@ class CosyVoice:
                 )
                 yield model_output
                 start_time = time.time()
+            self.last_voice_embedding = model_input["flow_embedding"]
 
     def inference_zero_shot(self, tts_text, prompt_text, prompt_speech_16k, stream=False):
         prompt_text = self.frontend.text_normalize(prompt_text, split=False)
@@ -93,7 +101,8 @@ class CosyVoice:
                 logging.info('yield speech len {}, rtf {}'.format(speech_len, (time.time() - start_time) / speech_len))
                 yield model_output
                 start_time = time.time()
-
+            self.last_voice_embedding = model_input["flow_embedding"]
+            
     def inference_cross_lingual(self, tts_text, prompt_speech_16k, stream=False):
         if self.frontend.instruct is True:
             raise ValueError('{} do not support cross_lingual inference'.format(self.model_dir))
@@ -106,6 +115,7 @@ class CosyVoice:
                 logging.info('yield speech len {}, rtf {}'.format(speech_len, (time.time() - start_time) / speech_len))
                 yield model_output
                 start_time = time.time()
+            self.last_voice_embedding = model_input["flow_embedding"]
 
     def inference_instruct(self, tts_text, spk_id, instruct_text, stream=False):
         if self.frontend.instruct is False:
@@ -120,3 +130,4 @@ class CosyVoice:
                 logging.info('yield speech len {}, rtf {}'.format(speech_len, (time.time() - start_time) / speech_len))
                 yield model_output
                 start_time = time.time()
+            self.last_voice_embedding = model_input["flow_embedding"]
