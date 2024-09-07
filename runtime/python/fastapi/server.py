@@ -11,16 +11,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import argparse
+import io
+import logging
 import os
 import sys
-import argparse
-import logging
+
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
-from fastapi import FastAPI, UploadFile, Form, File
-from fastapi.responses import StreamingResponse
-from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
 import numpy as np
+import torch
+import torchaudio
+import uvicorn
+from fastapi import FastAPI, File, Form, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response, StreamingResponse
+
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append('{}/../../..'.format(ROOT_DIR))
 sys.path.append('{}/../../../third_party/Matcha-TTS'.format(ROOT_DIR))
@@ -36,6 +41,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"])
 
+cosyvoice = CosyVoice(os.getenv("MODEL_DIR"))
 
 def generate_data(model_output):
     for i in model_output:
@@ -69,15 +75,22 @@ async def inference_instruct(tts_text: str = Form(), spk_id: str = Form(), instr
     return StreamingResponse(generate_data(model_output))
 
 
+@app.post("/inference_instruct_ogg")
+async def inference_instruct_ogg(tts_text: str = Form(), spk_id: str = Form(), instruct_text: str = Form()):
+    model_output = cosyvoice.inference_instruct(tts_text, spk_id, instruct_text)
+    
+    audio_data = np.concatenate([i['tts_speech'].numpy() for i in model_output])
+    
+    buffer = io.BytesIO()
+    torchaudio.save(buffer, torch.tensor(audio_data), 22050, format="ogg")
+    
+    return Response(content=buffer.getvalue(), media_type="audio/ogg")
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--port',
                         type=int,
                         default=50000)
-    parser.add_argument('--model_dir',
-                        type=str,
-                        default='iic/CosyVoice-300M',
-                        help='local path or modelscope repo id')
     args = parser.parse_args()
-    cosyvoice = CosyVoice(args.model_dir)
     uvicorn.run(app, host="127.0.0.1", port=args.port)
