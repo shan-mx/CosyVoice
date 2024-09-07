@@ -53,8 +53,7 @@ class CosyVoiceFrontEnd:
         self.speech_tokenizer_session = onnxruntime.InferenceSession(speech_tokenizer_model, sess_options=option,
                                                                      providers=["CUDAExecutionProvider" if torch.cuda.is_available() else
                                                                                 "CPUExecutionProvider"])
-        if os.path.exists(spk2info):
-            self.spk2info = torch.load(spk2info, map_location=self.device)
+        self.load_voices()
         self.instruct = instruct
         self.allowed_special = allowed_special
         self.inflect_parser = inflect.engine()
