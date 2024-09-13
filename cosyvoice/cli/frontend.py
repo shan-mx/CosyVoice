@@ -70,7 +70,8 @@ class CosyVoiceFrontEnd:
             self.zh_tn_model = ZhNormalizer(remove_erhua=False, full_to_half=False)
             self.en_tn_model = EnNormalizer()
 
-    def load_voices(self, voices_dir="./voices"):
+    def load_voices(self):
+        voices_dir  = "/".join(os.path.abspath(__file__).split("/")[:-1]) + "/../../voices"
         self.spk2info = {}
         for file_name in os.listdir(voices_dir):
             if file_name.endswith(".pt"):
