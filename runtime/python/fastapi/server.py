@@ -17,6 +17,9 @@ import logging
 import os
 import sys
 
+from pydantic import BaseModel
+from pydub import AudioSegment
+
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 import numpy as np
 import torch
@@ -75,16 +78,28 @@ async def inference_instruct(tts_text: str = Form(), spk_id: str = Form(), instr
     return StreamingResponse(generate_data(model_output))
 
 
-@app.post("/inference_instruct_ogg")
-async def inference_instruct_ogg(tts_text: str = Form(), spk_id: str = Form(), instruct_text: str = Form()):
-    model_output = cosyvoice.inference_instruct(tts_text, spk_id, instruct_text)
+class InstructInferenceRequest(BaseModel):
+    tts_text: str
+    spk_id: str
+    instruct_text: str
+
+@app.post("/inference_instruct_mp3")
+async def inference_instruct_mp3(request: InstructInferenceRequest):
+    model_output = cosyvoice.inference_instruct(request.tts_text, request.spk_id, request.instruct_text)
     
     audio_data = np.concatenate([i['tts_speech'].numpy() for i in model_output])
     
-    buffer = io.BytesIO()
-    torchaudio.save(buffer, torch.tensor(audio_data), 22050, format="ogg")
+    audio_segment = AudioSegment(
+        audio_data.tobytes(),
+        frame_rate=22050,
+        sample_width=audio_data.dtype.itemsize,
+        channels=1
+    )
     
-    return Response(content=buffer.getvalue(), media_type="audio/ogg")
+    buffer = io.BytesIO()
+    audio_segment.export(buffer, format="mp3")
+    
+    return Response(content=buffer.getvalue(), media_type="audio/mpeg")
 
 
 if __name__ == '__main__':
