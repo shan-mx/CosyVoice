@@ -101,6 +101,9 @@ async def inference_instruct_mp3(request: InstructInferenceRequest):
     
     return Response(content=buffer.getvalue(), media_type="audio/mpeg")
 
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -108,4 +111,4 @@ if __name__ == '__main__':
                         type=int,
                         default=50000)
     args = parser.parse_args()
-    uvicorn.run(app, host="127.0.0.1", port=args.port)
+    uvicorn.run(app, host="0.0.0.0", port=args.port)
