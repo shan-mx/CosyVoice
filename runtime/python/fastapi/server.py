@@ -22,8 +22,6 @@ from pydub import AudioSegment
 
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 import numpy as np
-import torch
-import torchaudio
 import uvicorn
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -83,27 +81,37 @@ class InstructInferenceRequest(BaseModel):
     spk_id: str
     instruct_text: str
 
+
 @app.post("/inference_instruct_mp3")
 async def inference_instruct_mp3(request: InstructInferenceRequest):
     model_output = cosyvoice.inference_instruct(request.tts_text, request.spk_id, request.instruct_text)
     
     audio_data = np.concatenate([i['tts_speech'].numpy() for i in model_output])
     
+    # Normalize audio data to [-1, 1] range
+    audio_data = audio_data / np.max(np.abs(audio_data))
+
+    # Convert to 16-bit PCM
+    audio_data = (audio_data * 32767).astype(np.int16)
+
+    # Create AudioSegment from raw PCM data
     audio_segment = AudioSegment(
         audio_data.tobytes(),
         frame_rate=22050,
-        sample_width=audio_data.dtype.itemsize,
-        channels=1
+        sample_width=2,  # 16-bit
+        channels=1,
     )
-    
+
     buffer = io.BytesIO()
     audio_segment.export(buffer, format="mp3")
     
     return Response(content=buffer.getvalue(), media_type="audio/mpeg")
 
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
